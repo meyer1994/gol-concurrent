@@ -5,6 +5,11 @@
 
 typedef unsigned char cell_t;
 
+typedef struct range {
+    int start_line;
+    int end_line;
+} range;
+
 // Prototypes
 cell_t** allocate_board(int size);
 void free_board(cell_t** board, int size);
@@ -13,7 +18,6 @@ void print_board(cell_t** board, int size);
 void read_file(FILE* f, cell_t** board, int size);
 
 sem_t sem;  // sempahore
-sem_t mutex1;  // mutex
 sem_t mutex;  // mutex
 
 // Global variables
@@ -22,8 +26,8 @@ cell_t** next;
 cell_t** tmp;
 int size;
 int steps;
-int section;
-
+int start_line;
+int end_line;
 int total;
 
 // Do the thing
@@ -31,26 +35,47 @@ void* play(void* arg) {
     while(steps > 0) {
 
         sem_wait(&sem);
-
-        // só falta fazer o calculo de cada seção que cada thread vai calcular
-        // tem que fazer os calculos dos limites, da coluna tal até tal e da
-        // linha tal até tal.
         sem_wait(&mutex);
-        int limit = size;
-        int max_y = section * (size % total)
+
+        // calculate range
+        int thr;
+        sem_getvalue(&sem, &thr);
+        printf("thr %d\n", thr);
+        start_line = (thr * (size / total));
+        int end = start_line + (size / total);
+        if (end >= size)
+            end  = size - 1;
+        end_line = end;
+
+        printf("start %d\n", start_line);
+        printf("end %d\n\n", end_line);
 
         // get coordinates
-        int i = sem_value / size;
-        int j = sem_value % size;
+        for (int i = start_line; i < end_line; i++) {
+            for (int j = 0; j < size; j++) {
+                int a = adjacent_to(prev, size, i, j);
+                if (a < 2 || a > 3)
+                    next[i][j] = 0;
+                if (a == 2)
+                    next[i][j] = prev[i][j];
+                if (a == 3)
+                    next[i][j] = 1;
+            }
+        }
 
-        int a = adjacent_to(prev, size, i, j);
-        if (a < 2 || a > 3)
-            next[i][j] = 0;
-        if (a == 2)
-            next[i][j] = prev[i][j];
-        if (a == 3)
-            next[i][j] = 1;
+        if (end_line == (size - 1)) {
+            steps--;
+            start_line = 0;
 
+            // swap time
+            cell_t** tmp = next;
+            next = prev;
+            prev = tmp;
+
+            for (int i = 0; i < total; i++)
+                sem_post(&sem);
+
+        }
         sem_post(&mutex);
 
         // debug stuff
@@ -58,26 +83,9 @@ void* play(void* arg) {
         printf("%d ----------\n", i + 1);
         print_board(next, size);
         #endif
-
-        // it will only pass at the end of all tests
-        if (sem_value == 0) {
-            sem_wait(&mutex);
-            steps--;
-            section = size;
-            printf("%d\n", steps);
-            printf("%d %d\n", i, j);
-            printf("%d\n\n", size);
-
-            // swap time
-            cell_t** tmp = next;
-            next = prev;
-            prev = tmp;
-
-            for (int k = 0; k < (size * size); k++)
-                sem_post(&sem);
-            sem_post(&mutex);
-        }
     }
+
+    pthread_exit(NULL);
 }
 
 
@@ -109,13 +117,19 @@ int main(int argc, char const *argv[]) {
 
     // insantiate stuff
     total = atoi(argv[1]);
+    start_line = 0;
     pthread_t threads[total];
-    sem_init(&sem, 0, size*size);
+    pthread_t contr;
+    sem_init(&sem, 0, total);
     sem_init(&mutex, 0, 1);
-    sem_init(&mutex1, 0, 1);
 
-    for (int i = 0; i < total; i++)
+    // start threads
+    for (int i = 0; i < total; i++) {
+        range* coord = malloc(sizeof(range));
+
+
         pthread_create(&threads[i], NULL, play, NULL);
+    }
 
     for (int i = 0; i < total; i++)
         pthread_join(threads[i], NULL);
@@ -124,10 +138,10 @@ int main(int argc, char const *argv[]) {
     sem_destroy(&mutex);
 
     // more debug stuff
-    #ifdef RESULT
-    printf("Final:\n");
-    print_board(prev,size);
-    #endif
+    // #ifdef RESULT
+    // printf("Final:\n");
+    // print_board(prev,size);
+    // #endif
 
     // free everything
     free_board(prev, size);
