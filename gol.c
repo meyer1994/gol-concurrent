@@ -17,9 +17,6 @@ int adjacent_to(cell_t** board, int size, int i, int j);
 void print_board(cell_t** board, int size);
 void read_file(FILE* f, cell_t** board, int size);
 
-sem_t sem;  // sempahore
-sem_t mutex;  // mutex
-
 pthread_barrier_t barrier;
 
 // Global variables
@@ -28,23 +25,18 @@ cell_t** next;
 
 int size;
 int steps;
-int total;
-int done;
-
-void* swap() {
-    // sem_wait(&mutex);
-
-    // sem_post(&mutex);
-}
 
 // Do the thing
 void* play(void* arg) {
     range* rang = (range*) arg;
 
+    // steps
     while(steps > 0) {
-        // sem_wait(&mutex);
+        // lines
         for (int i = rang->min_line; i <= rang->max_line; i++) {
+            // columns
             for (int j = 0; j < size; j++) {
+                // game of life rules
                 int a = adjacent_to(prev, size, i, j);
                 if (a < 2 || a > 3)
                     next[i][j] = 0;
@@ -54,31 +46,30 @@ void* play(void* arg) {
                     next[i][j] = 1;
             }
         }
-        // sem_post(&mutex);
 
-        // threads stop here until the number specified in the init function is
-        // reached.
+
+        // all threads stops here
         int b = pthread_barrier_wait(&barrier);
-        // the wait function returns this strange number (PTHREAD_BARRIER...)
-        // for only one of the stopped threads
+
+        // only one of the stopped thread will do the below
         if (b == PTHREAD_BARRIER_SERIAL_THREAD) {
-            steps--;
             cell_t** tmp = next;
             next = prev;
             prev = tmp;
+
+            steps--;
         }
 
-        // LOL
+        // not the most efficient way, but it works
         pthread_barrier_wait(&barrier);
 
-
         // debug stuff
-        // #ifdef DEBUG
-        // printf("%d ----------\n", i + 1);
-        // print_board(next, size);
-        // #endif
+        #ifdef DEBUG
+        printf("%d ----------\n", i + 1);
+        print_board(next, size);
+        #endif
     }
-
+    // bye!
     pthread_exit(NULL);
 }
 
@@ -108,26 +99,24 @@ int main(int argc, char const *argv[]) {
     print_board(prev, size);
     #endif
 
-
-
-
-
-
+    ////////////////////////////////////////////////////////////////////////////
+    //                                                                        //
+    //                                 PROJECT PART                           //
+    //                                                                        //
+    ////////////////////////////////////////////////////////////////////////////
 
     // insantiate stuff
-    total = atoi(argv[1]);
-    done = total;
+    int total = atoi(argv[1]);
     pthread_t threads[total];
 
     // define the range of each thread
     range* ranges = malloc(sizeof(range) * total);
     int x_max = size - 1;
     int x_min = size - (size / total);
-    // printf("Ranges\n");
+
     for (int i = 0; i < total; i++) {
         ranges[i].max_line = x_max;
         ranges[i].min_line = x_min;
-        // printf("i: %d\nmin: %d, max: %d\n\n", i, x_min, x_max);
         x_max = x_min - 1;
         x_min = x_max - (size / total);
     }
@@ -135,8 +124,6 @@ int main(int argc, char const *argv[]) {
     if (ranges[total-1].min_line != 0)
         ranges[total-1].min_line = 0;
 
-    sem_init(&sem, 0, 0);
-    sem_init(&mutex, 0, 1);
     pthread_barrier_init(&barrier, NULL, total);
 
     // start threads
@@ -148,17 +135,7 @@ int main(int argc, char const *argv[]) {
 
     free(ranges);
 
-    sem_destroy(&sem);
-    sem_destroy(&mutex);
     pthread_barrier_destroy(&barrier);
-
-
-
-
-
-
-
-
 
     // more debug stuff
     #ifdef RESULT
