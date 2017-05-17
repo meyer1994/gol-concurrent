@@ -6,8 +6,8 @@
 typedef unsigned char cell_t;
 
 typedef struct range {
-    int start_line;
-    int end_line;
+    int min_line;
+    int max_line;
 } range;
 
 // Prototypes
@@ -20,38 +20,31 @@ void read_file(FILE* f, cell_t** board, int size);
 sem_t sem;  // sempahore
 sem_t mutex;  // mutex
 
+pthread_barrier_t barrier;
+
 // Global variables
 cell_t** prev;
 cell_t** next;
-cell_t** tmp;
+
 int size;
 int steps;
-int start_line;
-int end_line;
 int total;
+int done;
+
+void* swap() {
+    // sem_wait(&mutex);
+
+    // sem_post(&mutex);
+}
 
 // Do the thing
 void* play(void* arg) {
+    range* rang = (range*) arg;
+
     while(steps > 0) {
-
-        sem_wait(&sem);
         sem_wait(&mutex);
-
-        // calculate range
-        int thr;
-        sem_getvalue(&sem, &thr);
-        printf("thr %d\n", thr);
-        start_line = (thr * (size / total));
-        int end = start_line + (size / total);
-        if (end >= size)
-            end  = size - 1;
-        end_line = end;
-
-        printf("start %d\n", start_line);
-        printf("end %d\n\n", end_line);
-
-        // get coordinates
-        for (int i = start_line; i < end_line; i++) {
+        for (int i = rang->min_line; i <= rang->max_line; i++) {
+            // sem_wait(&mutex);
             for (int j = 0; j < size; j++) {
                 int a = adjacent_to(prev, size, i, j);
                 if (a < 2 || a > 3)
@@ -62,32 +55,29 @@ void* play(void* arg) {
                     next[i][j] = 1;
             }
         }
-
-        if (end_line == (size - 1)) {
-            steps--;
-            start_line = 0;
-
-            // swap time
-            cell_t** tmp = next;
-            next = prev;
-            prev = tmp;
-
-            for (int i = 0; i < total; i++)
-                sem_post(&sem);
-
-        }
         sem_post(&mutex);
 
+        pthread_barrier_wait(&barrier);
+
+        sem_wait(&mutex);
+        steps--;
+        printf("%d\n", steps);
+        sem_post(&mutex);
+
+        cell_t** tmp = next;
+        next = prev;
+        prev = tmp;
+
+
         // debug stuff
-        #ifdef DEBUG
-        printf("%d ----------\n", i + 1);
-        print_board(next, size);
-        #endif
+        // #ifdef DEBUG
+        // printf("%d ----------\n", i + 1);
+        // print_board(next, size);
+        // #endif
     }
 
     pthread_exit(NULL);
 }
-
 
 int main(int argc, char const *argv[]) {
     // arg test
@@ -115,33 +105,63 @@ int main(int argc, char const *argv[]) {
     print_board(prev, size);
     #endif
 
+
+
+
+
+
+
     // insantiate stuff
     total = atoi(argv[1]);
-    start_line = 0;
+    done = total;
     pthread_t threads[total];
-    pthread_t contr;
-    sem_init(&sem, 0, total);
+
+    // define the range of each thread
+    range* ranges = malloc(sizeof(range) * total);
+    int x_max = size - 1;
+    int x_min = size - (size / total);
+    printf("Ranges\n");
+    for (int i = 0; i < total; i++) {
+        ranges[i].max_line = x_max;
+        ranges[i].min_line = x_min;
+        printf("i: %d\nmin: %d, max: %d\n\n", i, x_min, x_max);
+        x_max = x_min - 1;
+        x_min = x_max - (size / total);
+    }
+
+    if (ranges[total-1].min_line != 0)
+        ranges[total-1].min_line = 0;
+
+    sem_init(&sem, 0, 0);
     sem_init(&mutex, 0, 1);
+    pthread_barrier_init(&barrier, NULL, total);
 
     // start threads
-    for (int i = 0; i < total; i++) {
-        range* coord = malloc(sizeof(range));
-
-
-        pthread_create(&threads[i], NULL, play, NULL);
-    }
+    for (int i = 0; i < total; i++)
+        pthread_create(&threads[i], NULL, play, &ranges[i]);
 
     for (int i = 0; i < total; i++)
         pthread_join(threads[i], NULL);
 
+    free(ranges);
+
     sem_destroy(&sem);
     sem_destroy(&mutex);
+    pthread_barrier_destroy(&barrier);
+
+
+
+
+
+
+
+
 
     // more debug stuff
-    // #ifdef RESULT
-    // printf("Final:\n");
-    // print_board(prev,size);
-    // #endif
+    #ifdef RESULT
+    printf("Final:\n");
+    print_board(prev,size);
+    #endif
 
     // free everything
     free_board(prev, size);
@@ -187,7 +207,6 @@ int adjacent_to(cell_t** board, int size, int i, int j) {
     count -= board[i][j];
     return count;
 }
-
 
 // Prints
 void print_board(cell_t** board, int size) {
