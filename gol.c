@@ -42,9 +42,8 @@ void* play(void* arg) {
     range* rang = (range*) arg;
 
     while(steps > 0) {
-        sem_wait(&mutex);
+        // sem_wait(&mutex);
         for (int i = rang->min_line; i <= rang->max_line; i++) {
-            // sem_wait(&mutex);
             for (int j = 0; j < size; j++) {
                 int a = adjacent_to(prev, size, i, j);
                 if (a < 2 || a > 3)
@@ -55,18 +54,22 @@ void* play(void* arg) {
                     next[i][j] = 1;
             }
         }
-        sem_post(&mutex);
+        // sem_post(&mutex);
 
+        // threads stop here until the number specified in the init function is
+        // reached.
+        int b = pthread_barrier_wait(&barrier);
+        // the wait function returns this strange number (PTHREAD_BARRIER...)
+        // for only one of the stopped threads
+        if (b == PTHREAD_BARRIER_SERIAL_THREAD) {
+            steps--;
+            cell_t** tmp = next;
+            next = prev;
+            prev = tmp;
+        }
+
+        // LOL
         pthread_barrier_wait(&barrier);
-
-        sem_wait(&mutex);
-        steps--;
-        printf("%d\n", steps);
-        sem_post(&mutex);
-
-        cell_t** tmp = next;
-        next = prev;
-        prev = tmp;
 
 
         // debug stuff
@@ -120,11 +123,11 @@ int main(int argc, char const *argv[]) {
     range* ranges = malloc(sizeof(range) * total);
     int x_max = size - 1;
     int x_min = size - (size / total);
-    printf("Ranges\n");
+    // printf("Ranges\n");
     for (int i = 0; i < total; i++) {
         ranges[i].max_line = x_max;
         ranges[i].min_line = x_min;
-        printf("i: %d\nmin: %d, max: %d\n\n", i, x_min, x_max);
+        // printf("i: %d\nmin: %d, max: %d\n\n", i, x_min, x_max);
         x_max = x_min - 1;
         x_min = x_max - (size / total);
     }
