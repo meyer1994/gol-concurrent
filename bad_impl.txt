@@ -1,0 +1,25 @@
+// calcualtes one single cell (too much change of contexts)
+sem_wait(&s);
+sem_wait(&m);
+pos--;
+int i = pos / size;
+int j = pos % size;
+int a = adjacent_to(prev, size, i, j);
+if (a < 2 || a > 3)
+    next[i][j] = 0;
+if (a == 2)
+    next[i][j] = prev[i][j];
+if (a == 3)
+    next[i][j] = 1;
+if(pos == 0) {
+    cell_t** tmp = next;
+    next = prev;
+    prev = tmp;
+
+    steps--;
+    int l = size*size;
+    pos = l;
+    for (int k = 0; k < l; k++)
+        sem_post(&s);
+}
+sem_post(&m);
