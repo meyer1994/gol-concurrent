@@ -57,16 +57,16 @@ void* play(void* arg) {
             prev = tmp;
 
             steps--;
+
+            // debug stuff
+            #ifdef DEBUG
+            printf("%d ----------\n", i + 1);
+            print_board(next, size);
+            #endif
         }
 
-        // not the most efficient way, but it works
+        // wait for the boards to be changed
         pthread_barrier_wait(&barrier);
-
-        // debug stuff
-        #ifdef DEBUG
-        printf("%d ----------\n", i + 1);
-        print_board(next, size);
-        #endif
     }
     // bye!
     pthread_exit(NULL);
