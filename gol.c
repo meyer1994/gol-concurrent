@@ -15,6 +15,7 @@ void free_board(cell_t** board, int size);
 int adjacent_to(cell_t** board, int size, int i, int j);
 void print_board(cell_t** board, int size);
 void read_file(FILE* f, cell_t** board, int size);
+range* get_ranges(int n, int size);
 
 pthread_barrier_t barrier;
 
@@ -32,7 +33,7 @@ void* play(void* arg) {
     // steps
     while(steps > 0) {
         // lines
-        for (int i = rang->min_line; i <= rang->max_line; i++) {
+        for (int i = rang->min_line; i < rang->max_line; i++) {
             // columns
             for (int j = 0; j < size; j++) {
                 // game of life rules
@@ -50,7 +51,7 @@ void* play(void* arg) {
         // all threads stops here
         int b = pthread_barrier_wait(&barrier);
 
-        // only one of the stopped thread will do the below
+        // only one of the stopped threads will do the below
         if (b == PTHREAD_BARRIER_SERIAL_THREAD) {
             cell_t** tmp = next;
             next = prev;
@@ -85,6 +86,14 @@ int main(int argc, char const *argv[]) {
     // gets info from file
     fscanf(f, "%d %d", &size, &steps);
 
+    // avoid crazy input
+    int TOTAL = atoi(argv[1]);
+    if (TOTAL > size) {
+        printf("Number of threads should be equal or smaller than the size of"
+        "the matrix\nSize = %5d\nThreads = %5d", size, TOTAL);
+        exit(1);
+    }
+
     // gets the initial state from file
     prev = allocate_board(size);
     read_file(f, prev, size);
@@ -105,31 +114,19 @@ int main(int argc, char const *argv[]) {
     ////////////////////////////////////////////////////////////////////////////
 
     // insantiate stuff
-    int total = atoi(argv[1]);
-    pthread_t threads[total];
+    pthread_t threads[TOTAL];
 
     // define the range of each thread
-    range* ranges = malloc(sizeof(range) * total);
-    int x_max = size - 1;
-    int x_min = size - (size / total);
+    range* ranges = get_ranges(TOTAL, size);
 
-    for (int i = 0; i < total; i++) {
-        ranges[i].max_line = x_max;
-        ranges[i].min_line = x_min;
-        x_max = x_min - 1;
-        x_min = x_max - (size / total);
-    }
-
-    if (ranges[total-1].min_line != 0)
-        ranges[total-1].min_line = 0;
-
-    pthread_barrier_init(&barrier, NULL, total);
+    pthread_barrier_init(&barrier, NULL, TOTAL);
 
     // start threads
-    for (int i = 0; i < total; i++)
+    for (int i = 0; i < TOTAL; i++)
         pthread_create(&threads[i], NULL, play, &ranges[i]);
 
-    for (int i = 0; i < total; i++)
+    // wait to finish
+    for (int i = 0; i < TOTAL; i++)
         pthread_join(threads[i], NULL);
 
     free(ranges);
@@ -154,6 +151,28 @@ cell_t** allocate_board(int size) {
         board[i] = (cell_t*) malloc(sizeof(cell_t) * size);
     }
     return board;
+}
+
+// return pointer to array of ranges with size n
+range* get_ranges(int n, int size) {
+    range* ranges = malloc(sizeof(range) * n);
+    for (int i = 0; i < n; i++) {
+        ranges[i].max_line = 0;
+        ranges[i].min_line = 0;
+    }
+
+    int count = 0;
+    while (count < size) {
+        ranges[count%n].max_line++;
+        count++;
+    }
+
+    for (int i = 1; i < n; i++) {
+        ranges[i].min_line = ranges[i-1].max_line;
+        ranges[i].max_line += ranges[i-1].max_line;
+    }
+
+    return ranges;
 }
 
 // Frees the heap
