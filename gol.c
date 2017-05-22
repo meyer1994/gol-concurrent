@@ -88,6 +88,10 @@ int main(int argc, char const *argv[]) {
 
     // avoid crazy input
     int TOTAL = atoi(argv[1]);
+    if (TOTAL <= 0) {
+        printf("Seriously?\n");
+        exit(1)
+    }
     if (TOTAL > size) {
         printf("Number of threads should be equal or smaller than the size of"
         "the matrix\nSize = %5d\nThreads = %5d", size, TOTAL);
