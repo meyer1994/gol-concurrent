@@ -90,7 +90,7 @@ int main(int argc, char const *argv[]) {
     int TOTAL = atoi(argv[1]);
     if (TOTAL <= 0) {
         printf("Seriously?\n");
-        exit(1)
+        exit(1);
     }
     if (TOTAL > size) {
         printf("Number of threads should be equal or smaller than the size of"
@@ -188,26 +188,25 @@ void free_board(cell_t** board, int size) {
 }
 
 // Gets the number of alive neighbours
-int adjacent_to(cell_t** board, int size, int i, int j) {
-    int start_line = i, end_line = i;
-    int start_column = j, end_column = j;
-
-    if (i > 0)
-        --start_line;
-    if (i < size - 1)
-        ++end_line;
-    if (j > 0)
-        --start_column;
-    if (j < size - 1)
-        ++end_column;
-
-    int count = 0;
-    for (int l = start_line; l <= end_line; ++l)
-        for (int c = start_column; c <= end_column; ++c)
-            count += board[l][c];
-
-    count -= board[i][j];
-    return count;
+inline int adjacent_to(cell_t** board, int size, int i, int j) {
+  int count = 0;
+  if (i-1 > 0 && j - 1 > 0)
+    count += board[i-1][j-1];
+  if (i-1 > 0)
+    count += board[i-1][j];
+  if (j-1 > 0)
+    count += board[i][j-1];
+  if (i-1 > 0 && j+1 < size)
+    count += board[i-1][j+1];
+  if (j+1 < size)
+    count += board[i][j+1];
+  if (j-1 > 0 && i+1 < size)
+    count += board[i+1][j-1];
+  if (i+1 < size)
+    count += board[i+1][j];
+  if (i+1 < size && j+1 < size)
+    count += board[i+1][j+1];
+  return count;
 }
 
 // Prints
